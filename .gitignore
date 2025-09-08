@@ -1,3 +1,4 @@
 /logs
 /src/core/__pycache__/*
 /output
+/dist

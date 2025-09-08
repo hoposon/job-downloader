@@ -103,7 +103,7 @@ def main():
         folder = filedialog.askdirectory(initialdir=initial)
         if folder:
             outdir_var.set(folder)
-    tb.Button(tab_general, text="Browse…", command=pick_folder, bootstyle=SECONDARY).grid(row=2, column=2, sticky=W, padx=8)
+    tb.Button(tab_general, text="Browse…", command=pick_folder, bootstyle=SECONDARY).grid(row=3, column=2, sticky=W, padx=8)
 
     # Formats
     tb.Label(tab_general, text="Formats:").grid(row=4, column=0, sticky=W, pady=5)
