@@ -23,6 +23,19 @@ def base_dir() -> Path:
         return Path(sys.executable).resolve().parent
     return Path(__file__).resolve().parents[1]
 
+def cli_executable_path(base: Path) -> str:
+    """
+    Return the command Task Scheduler should run.
+    - When frozen: dmw-export.exe next to the GUI exe.
+    - From source: python cli.py
+    """
+    if getattr(sys, "frozen", False):
+        cli_path = (base / "dmw-export.exe")
+        return f'"{cli_path}"'
+    else:
+        cli_py = (base / "src" / "cli.py").resolve()
+        return f'"{sys.executable}" "{cli_py}"'
+
 def open_folder(p: Path):
     p.mkdir(parents=True, exist_ok=True)
     if is_windows():
@@ -204,68 +217,81 @@ def main():
     # column stretch
     tab_general.columnconfigure(1, weight=1)
 
-    # -------- Schedule tab --------
-    sched_note = "Windows Task Scheduler controls"
+    # -------- Schedule tab (simple: Day X at HH:MM) --------
+    sched_note = "Windows Task Scheduler (run on a specific day and time)"
     if not is_windows():
         sched_note += " — disabled on this OS"
+
     tb.Label(tab_schedule, text=sched_note).grid(row=0, column=0, columnspan=4, sticky=W, pady=(0,8))
 
     tb.Label(tab_schedule, text="Run time:").grid(row=1, column=0, sticky=W)
     hour_var = tb.StringVar(value="23")
-    min_var = tb.StringVar(value="55")
-    tb.Spinbox(tab_schedule, values=[f"{i:02d}" for i in range(24)], textvariable=hour_var, width=5).grid(row=1, column=1, sticky=W)
+    min_var  = tb.StringVar(value="55")
+    hour_widget = tb.Spinbox(tab_schedule, values=[f"{i:02d}" for i in range(24)], textvariable=hour_var, width=5)
+    hour_widget.grid(row=1, column=1, sticky=W)
     tb.Label(tab_schedule, text=":").grid(row=1, column=2, sticky=W)
-    tb.Spinbox(tab_schedule, values=[f"{i:02d}" for i in range(60)], textvariable=min_var, width=5).grid(row=1, column=3, sticky=W)
+    min_widget  = tb.Spinbox(tab_schedule, values=[f"{i:02d}" for i in range(60)], textvariable=min_var,  width=5)
+    min_widget.grid(row=1, column=3, sticky=W)
 
-    lastday_var = tb.BooleanVar(value=True)
-    tb.Checkbutton(tab_schedule, text="Run on LAST day of month", variable=lastday_var).grid(row=2, column=0, columnspan=2, sticky=W, pady=6)
-
-    tb.Label(tab_schedule, text="…or day:").grid(row=2, column=2, sticky=E)
+    tb.Label(tab_schedule, text="Day of month (1–28):").grid(row=2, column=0, sticky=W, pady=6)
     dom_var = tb.StringVar(value="1")
-    tb.Spinbox(tab_schedule, values=[str(i) for i in range(1,28)], textvariable=dom_var, width=5).grid(row=2, column=3, sticky=W)
-
-    tb.Label(tab_schedule, text="Extra args (optional):").grid(row=3, column=0, sticky=W, pady=6)
-    args_var = tb.StringVar(value="--month %DATE:~0,4%-%DATE:~5,2%")
-    tb.Entry(tab_schedule, textvariable=args_var, width=40).grid(row=3, column=1, columnspan=3, sticky=W)
+    dom_widget = tb.Spinbox(tab_schedule, values=[str(i) for i in range(1,29)], textvariable=dom_var, width=5)  # 1–28 is safest across all months
+    dom_widget.grid(row=2, column=1, sticky=W, pady=6)
 
     taskstate_var = tb.StringVar(value="")
-    tb.Label(tab_schedule, textvariable=taskstate_var).grid(row=4, column=0, columnspan=4, sticky=W, pady=(0,6))
+    tb.Label(tab_schedule, textvariable=taskstate_var).grid(row=3, column=0, columnspan=4, sticky=W, pady=(0,6))
 
     def on_create_update_schedule():
         if not is_windows():
             return
-        hour = int(hour_var.get())
-        minute = int(min_var.get())
-        last = bool(lastday_var.get())
-        dom = int(dom_var.get())
+        try:
+            hour = int(hour_var.get()); minute = int(min_var.get()); dom = int(dom_var.get())
+            if not (0 <= hour <= 23 and 0 <= minute <= 59): raise ValueError("Invalid time")
+            if not (1 <= dom <= 28): raise ValueError("Day must be 1–28")
+        except Exception as e:
+            messagebox.showerror("Invalid input", str(e))
+            return
 
-        # packaged exe vs dev
-        if getattr(sys, "frozen", False):
-            exe = sys.executable  # your packaged CLI/GUI can accept --headless-run; adjust if needed
-            tr_args = args_var.get().strip()
-        else:
-            exe = f'{sys.executable} "{(base / "src" / "cli.py").resolve()}"'
-            tr_args = args_var.get().strip()
-
-        code, out, err = create_or_update(exe, hour, minute, last, dom, tr_args)
+        exe_cmd = cli_executable_path(base)
+        # No "last day" mapping, no extra args — exactly what user set
+        code, out, err = create_or_update(exe_cmd, hour, minute, False, dom, "")
         taskstate_var.set("OK" if code == 0 else f"ERROR {code}")
         if out: log(out)
         if err: log(err)
 
     def on_delete_schedule():
-        if not is_windows():
-            return
+        if not is_windows(): return
         code, out, err = delete_task()
         taskstate_var.set("Deleted" if code == 0 else f"ERROR {code}")
         if out: log(out)
         if err: log(err)
 
+    def on_run_task_now():
+        if not is_windows(): return
+        try:
+            cp = subprocess.run(["schtasks", "/Run", "/TN", "DMW Monthly Export"], capture_output=True, text=True)
+            if cp.returncode == 0:
+                taskstate_var.set("Triggered")
+                log(cp.stdout or "Task triggered.")
+            else:
+                taskstate_var.set(f"ERROR {cp.returncode}")
+                log(cp.stderr or cp.stdout or "Failed to run task.")
+        except Exception as e:
+            taskstate_var.set("ERROR")
+            log(str(e))
+
     tb.Button(tab_schedule, text="Create/Update Schedule",
-              command=on_create_update_schedule,
-              bootstyle=PRIMARY, state=(NORMAL if is_windows() else DISABLED)).grid(row=5, column=0, pady=8, sticky=W)
+            command=on_create_update_schedule,
+            bootstyle=PRIMARY, state=(NORMAL if is_windows() else DISABLED)).grid(row=4, column=0, pady=8, sticky=W)
+
+    tb.Button(tab_schedule, text="Run Scheduled Task Now",
+            command=on_run_task_now,
+            bootstyle=SECONDARY, state=(NORMAL if is_windows() else DISABLED)).grid(row=4, column=1, pady=8, sticky=W)
+
     tb.Button(tab_schedule, text="Delete Schedule",
-              command=on_delete_schedule,
-              bootstyle=DANGER, state=(NORMAL if is_windows() else DISABLED)).grid(row=5, column=1, pady=8, sticky=W)
+            command=on_delete_schedule,
+            bootstyle=DANGER, state=(NORMAL if is_windows() else DISABLED)).grid(row=4, column=2, pady=8, sticky=W)
+
 
     # -------- Log area (shared) --------
     logbox = ScrolledText(app, height=12, wrap="word")
