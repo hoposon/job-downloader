@@ -19,17 +19,11 @@ jobs:
 
       # CLI exe for scheduler
       - name: Build CLI exe
-        run: |
-          pyinstaller --onefile --name dmw-export ^
-            --add-data "config.json;." ^
-            src/cli.py
+        run: pyinstaller --onefile --name dmw-export --add-data "config.json;." src/cli.py
 
       # GUI exe for users (ttkbootstrap UI)
       - name: Build GUI exe
-        run: |
-          pyinstaller --onefile --name dmw-export-gui ^
-            --add-data "config.json;." ^
-            src/app_ttk.py
+        run: pyinstaller --onefile --name dmw-export-gui --add-data "config.json;." --hidden-import ttkbootstrap.themes src/app_ttk.py
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
