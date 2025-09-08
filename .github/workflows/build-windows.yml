@@ -1,0 +1,40 @@
+name: build-windows
+on: [push, workflow_dispatch]
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'   # stable for pandas/openpyxl/pyinstaller
+
+      - name: Install deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller
+
+      # CLI exe for scheduler
+      - name: Build CLI exe
+        run: |
+          pyinstaller --onefile --name dmw-export ^
+            --add-data "config.json;." ^
+            src/cli.py
+
+      # GUI exe for users (ttkbootstrap UI)
+      - name: Build GUI exe
+        run: |
+          pyinstaller --onefile --name dmw-export-gui ^
+            --add-data "config.json;." ^
+            src/app_ttk.py
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-binaries
+          path: |
+            dist/dmw-export.exe
+            dist/dmw-export-gui.exe
