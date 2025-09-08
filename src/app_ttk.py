@@ -234,7 +234,7 @@ def main():
     min_widget.grid(row=1, column=3, sticky=W)
 
     tb.Label(tab_schedule, text="Day of month (1–28):").grid(row=2, column=0, sticky=W, pady=6)
-    dom_var = tb.StringVar(value="1")
+    dom_var = tb.StringVar(value="28")
     dom_widget = tb.Spinbox(tab_schedule, values=[str(i) for i in range(1,29)], textvariable=dom_var, width=5)  # 1–28 is safest across all months
     dom_widget.grid(row=2, column=1, sticky=W, pady=6)
 
