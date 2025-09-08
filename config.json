@@ -1,0 +1,8 @@
+{
+  "api_base": "https://master-api.dmw.gov.ph/api/v1/public/approved-job-orders/filter",
+  "api_key": "RTA0X0lOWFcycm9KU29WTlZxNDUzSDY5enc5OWFxY2ktWkxVdkFwZjEyMjkwNTA2MTE",
+  "jobsite": "Czech republic",
+  "output_dir": "./output",
+  "formats": ["csv", "xlsx"],
+  "timezone": "Europe/Prague"
+}

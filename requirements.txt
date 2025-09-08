@@ -1,0 +1,5 @@
+requests
+curl_cffi
+pandas
+openpyxl
+ttkbootstrap
